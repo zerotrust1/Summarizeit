@@ -11,18 +11,22 @@ interface TelegramMessage {
 }
 
 /**
- * Send a message to a Telegram chat
+ * Send a message to a Telegram chat with optional bot token
  */
-export async function sendTelegramMessage(message: TelegramMessage): Promise<boolean> {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+export async function sendTelegramMessage(
+  message: TelegramMessage,
+  botToken?: string
+): Promise<boolean> {
+  // Use provided token or fall back to environment variable
+  const token = botToken || process.env.TELEGRAM_BOT_TOKEN;
 
-  if (!botToken) {
+  if (!token) {
     console.warn('TELEGRAM_BOT_TOKEN not configured, skipping Telegram message');
     return false;
   }
 
   try {
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
     const response = await fetch(url, {
       method: 'POST',

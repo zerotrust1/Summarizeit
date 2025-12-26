@@ -86,7 +86,6 @@ export default function Home() {
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [error, setError] = useState('');
   const [step, setStep] = useState<'upload' | 'extracted' | 'summary'>('upload');
-  const [sendingToTelegram, setSendingToTelegram] = useState(false);
   const [telegramSent, setTelegramSent] = useState(false);
   const [isTelegramContext, setIsTelegramContext] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -220,10 +219,22 @@ export default function Home() {
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
       try {
-        const response = await fetch('/api/summarize', {
+        // Prepare the request payload
+        const payload: any = {
+          text: extractedText,
+        };
+
+        if (isTelegramContext) {
+          payload.initData = window.Telegram?.WebApp?.initData;
+        }
+
+        // Choose endpoint based on whether we're in Telegram context
+        const endpoint = isTelegramContext ? '/api/summarize-and-send' : '/api/summarize-with-key';
+
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: extractedText }),
+          body: JSON.stringify(payload),
           signal: controller.signal,
         });
 
@@ -236,6 +247,11 @@ export default function Home() {
 
         setSummary(data);
         setStep('summary');
+
+        // If summary was sent to Telegram, show success
+        if (data.telegram?.sent) {
+          setTelegramSent(true);
+        }
       } catch (fetchErr) {
         clearTimeout(timeoutId);
         if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
@@ -250,39 +266,6 @@ export default function Home() {
     }
   };
 
-  const handleSendToTelegram = async () => {
-    if (!summary) {
-      setError('No summary available to send');
-      return;
-    }
-
-    setSendingToTelegram(true);
-    setError('');
-
-    try {
-      const response = await fetch('/api/send-to-telegram', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          summary: summary.summary,
-          keyPoints: summary.keyPoints,
-          initData: window.Telegram?.WebApp?.initData || undefined,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send to Telegram');
-      }
-
-      setTelegramSent(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setSendingToTelegram(false);
-    }
-  };
 
   const handleReset = () => {
     setInputMode('select');
@@ -294,7 +277,6 @@ export default function Home() {
     setSummary(null);
     setError('');
     setStep('upload');
-    setSendingToTelegram(false);
     setTelegramSent(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -617,22 +599,10 @@ export default function Home() {
             </div>
 
             {/* Telegram Success Message */}
-            {telegramSent && (
+            {isTelegramContext && telegramSent && (
               <div className="p-3 bg-blue-100 dark:bg-blue-900 border border-blue-400 dark:border-blue-700 text-blue-800 dark:text-blue-200 rounded-lg text-sm">
                 ✅ Summary sent to your Telegram chat!
               </div>
-            )}
-
-            {/* Send to Telegram Button */}
-            {isTelegramContext && !telegramSent && (
-              <Button
-                onClick={handleSendToTelegram}
-                loading={sendingToTelegram}
-                loadingText="Sending to Telegram..."
-                variant="primary"
-              >
-                📤 Send to Telegram Chat
-              </Button>
             )}
 
             <Button
