@@ -2,18 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getOpenAIClient } from '@/app/utils/openai-client';
 import { checkRateLimit } from '@/app/utils/rate-limit';
 
-let pdfParse: ((buffer: Buffer) => Promise<{ text: string }>) | null = null;
-
-// Initialize pdf-parse dynamically
-(async () => {
-  try {
-    const pdfParseModule = await import('pdf-parse');
-    pdfParse = pdfParseModule.default;
-  } catch {
-    console.warn('pdf-parse module not available');
-  }
-})();
-
 // Maximum file size: 30MB for PDFs
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
 const ALLOWED_MIME_TYPE = 'application/pdf';
@@ -22,14 +10,6 @@ const ALLOWED_MIME_TYPE = 'application/pdf';
 const REQUEST_TIMEOUT = 60 * 1000; // 60 seconds (PDFs take longer)
 
 export async function POST(request: NextRequest) {
-  // Check if pdf-parse is available
-  if (!pdfParse) {
-    return NextResponse.json(
-      { error: 'PDF processing is not available. Please try text or image upload.' },
-      { status: 503 }
-    );
-  }
-
   // Check rate limit
   const { allowed, retryAfter } = checkRateLimit(request);
   if (!allowed) {
@@ -76,25 +56,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert file to buffer
+    // Convert file to buffer and base64
     const buffer = await file.arrayBuffer();
-    const pdfBuffer = Buffer.from(buffer);
+    const base64 = Buffer.from(buffer).toString('base64');
 
-    // Extract text from PDF using pdf-parse
-    const pdfData = await pdfParse(pdfBuffer);
-    const extractedText = pdfData.text.trim();
-
-    if (!extractedText || extractedText.length < 10) {
-      return NextResponse.json(
-        { error: 'No text found in PDF. Try a different PDF.' },
-        { status: 400 }
-      );
-    }
-
-    // Limit extracted text to reasonable size for API (first 10,000 chars)
-    const truncatedText = extractedText.substring(0, 10000);
-
-    // Use OpenAI to summarize the extracted PDF content with timeout
+    // Use OpenAI to extract and process PDF content with timeout
     const openai = getOpenAIClient();
 
     const controller = new AbortController();
@@ -107,7 +73,30 @@ export async function POST(request: NextRequest) {
           messages: [
             {
               role: 'user',
-              content: `Please summarize the following PDF content and provide key points:\n\n${truncatedText}`,
+              content: [
+                {
+                  type: 'text',
+                  text: `You are a professional PDF analyzer. Please extract and summarize the key information from this PDF file.
+
+Provide:
+1. A concise summary (3-4 sentences)
+2. 5 key points from the document
+
+Format your response as JSON:
+{
+  "summary": "Your summary here",
+  "keyPoints": ["point1", "point2", "point3", "point4", "point5"]
+}
+
+Return ONLY valid JSON, no other text.`,
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:application/pdf;base64,${base64}`,
+                  },
+                },
+              ],
             },
           ],
           max_tokens: 1000,
@@ -117,18 +106,45 @@ export async function POST(request: NextRequest) {
 
       clearTimeout(timeoutId);
 
-      const summary = response.choices[0].message.content?.trim();
+      const content = response.choices[0].message.content?.trim();
 
-      if (!summary) {
+      if (!content) {
         return NextResponse.json(
-          { error: 'Failed to generate summary' },
+          { error: 'Failed to process PDF' },
           { status: 500 }
         );
       }
 
+      // Parse JSON response with error handling
+      let pdfResponse: { summary: string; keyPoints: string[] };
+      try {
+        // Try direct parsing first
+        pdfResponse = JSON.parse(content);
+      } catch {
+        // If direct parsing fails, try to extract JSON from the content
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            pdfResponse = JSON.parse(jsonMatch[0]);
+          } catch {
+            console.error('Failed to parse PDF response:', content);
+            return NextResponse.json(
+              { error: 'Invalid response format from PDF processing' },
+              { status: 500 }
+            );
+          }
+        } else {
+          console.error('No JSON found in PDF response:', content);
+          return NextResponse.json(
+            { error: 'Invalid response format from PDF processing' },
+            { status: 500 }
+          );
+        }
+      }
+
       return NextResponse.json({
         success: true,
-        text: summary,
+        text: pdfResponse.summary,
       });
     } catch (apiError) {
       clearTimeout(timeoutId);
