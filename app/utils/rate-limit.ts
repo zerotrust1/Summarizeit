@@ -16,8 +16,17 @@ const RATE_LIMIT_MAX = 100; // 100 requests per window
  */
 function getClientIp(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0].trim() : request.ip || 'unknown';
-  return ip;
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+
+  const xRealIp = request.headers.get('x-real-ip');
+  if (xRealIp) {
+    return xRealIp;
+  }
+
+  // Fallback to connection info or unknown
+  return 'unknown';
 }
 
 /**
