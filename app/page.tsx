@@ -10,6 +10,16 @@ interface WebApp {
     show: () => void;
     hide: () => void;
   };
+  initData: string;
+}
+
+interface TelegramUser {
+  id: number;
+  is_bot: boolean;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  language_code?: string;
 }
 
 declare global {
@@ -85,6 +95,9 @@ export default function Home() {
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [error, setError] = useState('');
   const [step, setStep] = useState<'upload' | 'extracted' | 'summary'>('upload');
+  const [sendingToTelegram, setSendingToTelegram] = useState(false);
+  const [telegramSent, setTelegramSent] = useState(false);
+  const [isTelegramContext, setIsTelegramContext] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
@@ -94,6 +107,10 @@ export default function Home() {
       const webApp = window.Telegram.WebApp;
       webApp.ready();
       webApp.expand();
+      // Check if we have valid initData (indicates we're in Telegram context)
+      if (webApp.initData) {
+        setIsTelegramContext(true);
+      }
     }
   }, []);
 
@@ -242,6 +259,37 @@ export default function Home() {
     }
   };
 
+  const handleSendToTelegram = async () => {
+    if (!summary) return;
+
+    setSendingToTelegram(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/send-to-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary: summary.summary,
+          keyPoints: summary.keyPoints,
+          initData: window.Telegram?.WebApp?.initData || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send to Telegram');
+      }
+
+      setTelegramSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setSendingToTelegram(false);
+    }
+  };
+
   const handleReset = () => {
     setInputMode('select');
     setSelectedImage(null);
@@ -252,6 +300,8 @@ export default function Home() {
     setSummary(null);
     setError('');
     setStep('upload');
+    setSendingToTelegram(false);
+    setTelegramSent(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -571,6 +621,25 @@ export default function Home() {
                 ))}
               </ul>
             </div>
+
+            {/* Telegram Success Message */}
+            {telegramSent && (
+              <div className="p-3 bg-blue-100 dark:bg-blue-900 border border-blue-400 dark:border-blue-700 text-blue-800 dark:text-blue-200 rounded-lg text-sm">
+                ✅ Summary sent to your Telegram chat!
+              </div>
+            )}
+
+            {/* Send to Telegram Button */}
+            {isTelegramContext && !telegramSent && (
+              <Button
+                onClick={handleSendToTelegram}
+                loading={sendingToTelegram}
+                loadingText="Sending to Telegram..."
+                variant="primary"
+              >
+                📤 Send to Telegram Chat
+              </Button>
+            )}
 
             <Button
               onClick={handleReset}

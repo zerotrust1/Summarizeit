@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let timeoutId: NodeJS.Timeout | undefined;
+
   try {
     const { text } = (await request.json()) as SummarizeRequest;
 
@@ -57,15 +59,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate API key exists before proceeding
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('OPENAI_API_KEY not configured in environment');
+      return NextResponse.json(
+        { error: 'Server configuration error: API key not set' },
+        { status: 500 }
+      );
+    }
+
     const openai = getOpenAIClient();
 
-    // Create abort controller for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    // Create a promise that rejects after timeout
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error('REQUEST_TIMEOUT'));
+      }, REQUEST_TIMEOUT);
+    });
 
     try {
-      const message = await openai.chat.completions.create(
-        {
+      // Race between the API call and timeout
+      const message = await Promise.race([
+        openai.chat.completions.create({
           model: 'gpt-4o-mini',
           messages: [
             {
@@ -90,14 +105,15 @@ ${text}`,
           ],
           temperature: 0.5,
           max_tokens: 500,
-        },
-        { signal: controller.signal }
-      );
+        }),
+        timeoutPromise,
+      ]);
 
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
 
       const content = message.choices[0].message.content;
       if (!content) {
+        console.error('No content in OpenAI response');
         return NextResponse.json(
           { error: 'No response from AI' },
           { status: 500 }
@@ -109,15 +125,15 @@ ${text}`,
       try {
         // Try direct parsing first
         response = JSON.parse(content);
-      } catch {
+      } catch (parseError) {
         // If direct parsing fails, try to extract JSON from the content
         // Sometimes the AI includes extra text before/after the JSON
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           try {
             response = JSON.parse(jsonMatch[0]);
-          } catch {
-            console.error('Failed to parse AI response:', content);
+          } catch (extractError) {
+            console.error('Failed to parse extracted JSON:', content);
             return NextResponse.json(
               { error: 'Invalid response format from AI' },
               { status: 500 }
@@ -146,20 +162,25 @@ ${text}`,
         ...response,
       });
     } catch (apiError) {
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
 
       // Handle timeout specifically
-      if (apiError instanceof Error && apiError.name === 'AbortError') {
+      if (apiError instanceof Error && apiError.message === 'REQUEST_TIMEOUT') {
+        console.warn('Summarization request timed out');
         return NextResponse.json(
           { error: 'Summarization timed out. Please try with shorter text.' },
           { status: 504 }
         );
       }
 
+      // Log the actual error for debugging
+      console.error('OpenAI API Error:', apiError instanceof Error ? apiError.message : String(apiError));
       throw apiError;
     }
   } catch (error) {
-    console.error('Summarization Error:', error);
+    if (timeoutId) clearTimeout(timeoutId);
+
+    console.error('Summarization Error:', error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { error: 'Failed to summarize text' },
       { status: 500 }
