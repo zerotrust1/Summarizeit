@@ -4,12 +4,8 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "env": {
-    "OPENAI_API_KEY": {
-      "description": "OpenAI API Key for GPT-4o-mini model access"
-    },
-    "TELEGRAM_BOT_TOKEN": {
-      "description": "Telegram Bot Token for sending messages (optional)"
-    }
+    "OPENAI_API_KEY": "@openai_api_key",
+    "TELEGRAM_BOT_TOKEN": "@telegram_bot_token"
   },
   "functions": {
     "app/api/**/*.ts": {
