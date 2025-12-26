@@ -3,7 +3,6 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "nodeVersion": "20.x",
   "env": {
     "OPENAI_API_KEY": {
       "description": "OpenAI API Key for GPT-4o-mini model access"
