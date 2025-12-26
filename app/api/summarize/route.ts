@@ -149,7 +149,12 @@ ${text}`,
       }
 
       // Validate response structure
-      if (!response.summary || !Array.isArray(response.keyPoints)) {
+      if (
+        !response.summary?.trim() ||
+        !Array.isArray(response.keyPoints) ||
+        response.keyPoints.length === 0 ||
+        response.keyPoints.some(point => !point?.trim())
+      ) {
         console.error('Invalid response structure:', response);
         return NextResponse.json(
           { error: 'Invalid response format from AI' },

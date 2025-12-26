@@ -13,15 +13,6 @@ interface WebApp {
   initData: string;
 }
 
-interface TelegramUser {
-  id: number;
-  is_bot: boolean;
-  first_name: string;
-  last_name?: string;
-  username?: string;
-  language_code?: string;
-}
-
 declare global {
   interface Window {
     Telegram?: {
@@ -260,7 +251,10 @@ export default function Home() {
   };
 
   const handleSendToTelegram = async () => {
-    if (!summary) return;
+    if (!summary) {
+      setError('No summary available to send');
+      return;
+    }
 
     setSendingToTelegram(true);
     setError('');

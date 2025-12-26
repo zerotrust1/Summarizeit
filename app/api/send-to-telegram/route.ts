@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendTelegramMessage, formatSummaryForTelegram } from '@/app/utils/telegram-client';
+import { sendTelegramMessage, formatSummaryForTelegram, extractUserIdFromInitData } from '@/app/utils/telegram-client';
 
 interface SendToTelegramRequest {
   summary: string;
@@ -12,10 +12,19 @@ export async function POST(request: NextRequest) {
   try {
     const { summary, keyPoints, chatId, initData } = (await request.json()) as SendToTelegramRequest;
 
+    // TODO: Add Telegram signature verification using WebApp.initDataUnsafe
+    // This will ensure the initData comes from a legitimate Telegram WebApp
+    // See: https://core.telegram.org/bots/webapps#validating-data-received-from-the-web-app
+
     // Validate required fields
-    if (!summary || !keyPoints || keyPoints.length === 0) {
+    if (
+      !summary?.trim() ||
+      !Array.isArray(keyPoints) ||
+      keyPoints.length === 0 ||
+      keyPoints.some(point => !point?.trim())
+    ) {
       return NextResponse.json(
-        { error: 'Missing required fields: summary and keyPoints' },
+        { error: 'Invalid summary or key points' },
         { status: 400 }
       );
     }
@@ -26,17 +35,7 @@ export async function POST(request: NextRequest) {
     if (chatId) {
       userId = chatId;
     } else if (initData) {
-      // Extract user ID from Telegram WebApp initData
-      try {
-        const params = new URLSearchParams(initData);
-        const userParam = params.get('user');
-        if (userParam) {
-          const user = JSON.parse(userParam);
-          userId = user.id?.toString() || null;
-        }
-      } catch (error) {
-        console.error('Failed to parse initData:', error);
-      }
+      userId = extractUserIdFromInitData(initData);
     }
 
     if (!userId) {
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
       console.error('Failed to send message to Telegram');
       return NextResponse.json(
         {
-          error: 'Failed to send message to Telegram. Make sure TELEGRAM_BOT_TOKEN is configured.',
+          error: 'Unable to send message. Please try again later.',
         },
         { status: 500 }
       );
