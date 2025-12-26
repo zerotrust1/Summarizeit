@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import pdfParse from 'pdf-parse';
 import { getOpenAIClient } from '@/app/utils/openai-client';
 import { checkRateLimit } from '@/app/utils/rate-limit';
+
+let pdfParse: ((buffer: Buffer) => Promise<{ text: string }>) | null = null;
+
+// Initialize pdf-parse dynamically
+(async () => {
+  try {
+    const pdfParseModule = await import('pdf-parse');
+    pdfParse = pdfParseModule.default;
+  } catch {
+    console.warn('pdf-parse module not available');
+  }
+})();
 
 // Maximum file size: 30MB for PDFs
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
@@ -11,6 +22,14 @@ const ALLOWED_MIME_TYPE = 'application/pdf';
 const REQUEST_TIMEOUT = 60 * 1000; // 60 seconds (PDFs take longer)
 
 export async function POST(request: NextRequest) {
+  // Check if pdf-parse is available
+  if (!pdfParse) {
+    return NextResponse.json(
+      { error: 'PDF processing is not available. Please try text or image upload.' },
+      { status: 503 }
+    );
+  }
+
   // Check rate limit
   const { allowed, retryAfter } = checkRateLimit(request);
   if (!allowed) {
