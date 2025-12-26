@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useLayoutEffect } from 'react';
 import Image from 'next/image';
 
 interface WebApp {
@@ -65,6 +65,16 @@ function Button({
 const MAX_TEXT_LENGTH = 10000;
 
 export default function Home() {
+  // Suppress hydration warning for Telegram viewport variables
+  useLayoutEffect(() => {
+    // This runs before paint, ensuring client matches server
+    const htmlElement = document.documentElement;
+    // Remove the style attribute to prevent hydration mismatch
+    if (htmlElement.style.cssText.includes('--tg-viewport')) {
+      htmlElement.style.cssText = '';
+    }
+  }, []);
+
   const [inputMode, setInputMode] = useState<'select' | 'image' | 'text' | 'pdf' | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [selectedPDF, setSelectedPDF] = useState<File | null>(null);
