@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as pdfParse from 'pdf-parse';
+import pdfParse from 'pdf-parse';
 import { getOpenAIClient } from '@/app/utils/openai-client';
 import { checkRateLimit } from '@/app/utils/rate-limit';
 
