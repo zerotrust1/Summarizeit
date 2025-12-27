@@ -1,0 +1,180 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                         QUICK REFERENCE CARD                                 ║
+║                    SummarizeIT AI - Environment Variables                    ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ THE ANSWER TO YOUR QUESTION                                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ Q: "Without .env.local in GitHub, how does Vercel get the API key?"        │
+│                                                                              │
+│ A: From DIFFERENT SOURCES:                                                  │
+│                                                                              │
+│    Local Dev      →   .env.local (on your computer)                        │
+│    Production    →   Vercel Dashboard (not GitHub)                         │
+│    GitHub        →   NO secrets (just code)                                │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ENVIRONMENT VARIABLE FLOW                                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ LOCAL DEVELOPMENT:                                                          │
+│   npm run dev                                                               │
+│        ↓                                                                    │
+│   Reads .env.local                                                          │
+│        ↓                                                                    │
+│   process.env.OPENAI_API_KEY = "sk-proj-dev-key"                           │
+│        ↓                                                                    │
+│   API works ✅                                                              │
+│                                                                              │
+│ PRODUCTION:                                                                 │
+│   git push                                                                  │
+│        ↓                                                                    │
+│   Vercel detects push                                                       │
+│        ↓                                                                    │
+│   Vercel reads from Vercel Dashboard (NOT GitHub)                          │
+│        ↓                                                                    │
+│   process.env.OPENAI_API_KEY = "sk-proj-prod-key"                          │
+│        ↓                                                                    │
+│   API works ✅                                                              │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ WHAT GOES WHERE                                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ GitHub (Public)             Your Computer           Vercel Dashboard        │
+│ ───────────────            (Private)               (Encrypted)             │
+│ ✅ Code files              ✅ .env.local            ✅ Env Variables       │
+│ ✅ Documentation           ✅ API keys              ✅ Encrypted           │
+│ ❌ NO secrets              ❌ (git-ignored)         ❌ Never in code       │
+│ ❌ NO .env.local           ❌ NOT pushed                                    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ DO THIS NOW (Key Rotation)                                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ 1. Delete Old Key                                                           │
+│    → https://platform.openai.com/api-keys                                  │
+│    → Click trash icon                                                       │
+│                                                                              │
+│ 2. Create New Key                                                           │
+│    → Click "Create new secret key"                                         │
+│    → COPY IT IMMEDIATELY                                                   │
+│                                                                              │
+│ 3. Update Vercel                                                            │
+│    → https://vercel.com/dashboard                                          │
+│    → Settings → Environment Variables                                      │
+│    → Edit OPENAI_API_KEY                                                   │
+│    → Paste new key                                                         │
+│    → Save                                                                  │
+│                                                                              │
+│ 4. Redeploy                                                                 │
+│    → Deployments tab                                                       │
+│    → Click latest deployment                                               │
+│    → Redeploy button                                                       │
+│                                                                              │
+│ 5. Update Local                                                             │
+│    → Edit .env.local                                                       │
+│    → OPENAI_API_KEY=sk-proj-new-key-here                                  │
+│    → npm run dev                                                           │
+│                                                                              │
+│ Time: ~15 minutes                                                           │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SECURITY PRINCIPLE                                                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ SECRETS NEVER IN CODE                                                       │
+│   ├─ Not in GitHub                                                          │
+│   ├─ Not in .ts files                                                       │
+│   ├─ Not in package.json                                                    │
+│   └─ Not in vercel.json                                                     │
+│                                                                              │
+│ SECRETS ONLY IN:                                                            │
+│   ├─ .env.local (local only, git-ignored)                                  │
+│   └─ Vercel Dashboard (encrypted, private)                                 │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SETUP CHECKLIST                                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ LOCAL SETUP (One-time):                                                     │
+│   [ ] cp .env.local.example .env.local                                     │
+│   [ ] Edit .env.local: OPENAI_API_KEY=sk-proj-dev-key                      │
+│   [ ] npm run dev                                                          │
+│   [ ] Test http://localhost:3000 ✅                                        │
+│                                                                              │
+│ VERCEL SETUP (One-time):                                                    │
+│   [ ] Go to Vercel Dashboard                                               │
+│   [ ] Settings → Environment Variables                                     │
+│   [ ] Add: OPENAI_API_KEY = sk-proj-prod-key                              │
+│   [ ] Redeploy                                                             │
+│   [ ] Test Vercel URL ✅                                                   │
+│                                                                              │
+│ EVERY CODE PUSH:                                                            │
+│   [ ] git push                                                             │
+│   [ ] Vercel auto-deploys                                                 │
+│   [ ] Works automatically ✅                                               │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TROUBLESHOOTING                                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ "Server configuration error" locally:                                       │
+│   → Make sure .env.local has OPENAI_API_KEY                                │
+│   → Make sure it's correct key                                             │
+│   → Restart npm run dev                                                    │
+│                                                                              │
+│ "Server configuration error" on Vercel:                                     │
+│   → Make sure Vercel has OPENAI_API_KEY in dashboard                       │
+│   → Make sure you redeployed after adding it                               │
+│   → Check Function Logs for [CRITICAL] errors                             │
+│                                                                              │
+│ Old key not working:                                                        │
+│   → Delete it on OpenAI dashboard                                          │
+│   → Create new key                                                         │
+│   → Update everywhere (Vercel + .env.local)                                │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ KEY FILES                                                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ READ THESE (In Order):                                                      │
+│   1. FIX_OPENAI_KEY_NOW.md          ← Start here (key rotation)            │
+│   2. HOW_ENV_VARS_WORK.md           ← Understanding env vars               │
+│   3. ENV_VARS_DIAGRAM.txt           ← Visual explanations                  │
+│   4. COMPLETE_SUMMARY.md            ← Full summary                         │
+│   5. SECURE_SETUP.md                ← Detailed security guide              │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STATUS                                                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ ✅ Code: All critical bugs fixed                                            │
+│ ✅ Security: No secrets in GitHub                                           │
+│ ✅ Build: npm run build passes                                              │
+│ ✅ Lint: npm run lint passes                                                │
+│ ✅ Documentation: Complete                                                  │
+│ ⏳ Key Rotation: PENDING (Do now!)                                          │
+│                                                                              │
+│ Next: Follow FIX_OPENAI_KEY_NOW.md                                          │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+

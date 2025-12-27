@@ -4,10 +4,12 @@ import { checkRateLimit } from '@/app/utils/rate-limit';
 import { checkUserQuota } from '@/app/utils/user-rate-limit';
 import { validateTelegramInitData } from '@/app/utils/telegram-verify';
 import { initializeQuotaStorage } from '@/app/utils/user-rate-limit';
-import { sendTelegramMessage, formatSummaryForTelegram, extractUserIdFromInitData } from '@/app/utils/telegram-client';
+import { sendTelegramMessage, formatSummaryWithQuota, extractUserIdFromInitData } from '@/app/utils/telegram-client';
+import { addSummaryToHistory, initializeHistoryStorage } from '@/app/utils/telegram-history';
 
-// Initialize quota storage on first import
+// Initialize storage on first import
 initializeQuotaStorage();
+initializeHistoryStorage();
 
 // Maximum text length: 10,000 characters (~2,000 words)
 const MAX_TEXT_LENGTH = 10000;
@@ -219,7 +221,20 @@ ${text}`,
           }
 
           if (userId && botToken) {
-            const formattedMessage = formatSummaryForTelegram(response.summary, response.keyPoints);
+            // Save to history
+            addSummaryToHistory(userId, response.summary, response.keyPoints, text);
+
+            // Format message with quota info
+            const used = quotaRemaining !== undefined ? 10 - quotaRemaining - 1 : 0;
+            const remaining = quotaRemaining || 0;
+
+            const formattedMessage = formatSummaryWithQuota(
+              response.summary,
+              response.keyPoints,
+              used,
+              remaining
+            );
+
             telegramSent = await sendTelegramMessage(
               {
                 chat_id: userId,

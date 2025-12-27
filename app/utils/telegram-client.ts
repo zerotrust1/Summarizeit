@@ -104,3 +104,73 @@ export function extractUserIdFromInitData(initData: string): string | null {
     return null;
   }
 }
+
+/**
+ * Format user quota information for Telegram display
+ */
+export function formatQuotaForTelegram(
+  used: number,
+  remaining: number,
+  resetAt: string
+): string {
+  const DAILY_LIMIT = 10;
+
+  let message = '<b>📊 Daily Summarization Quota</b>\n\n';
+
+  // Quota bar
+  const filledBars = Math.floor((used / DAILY_LIMIT) * 10);
+  const emptyBars = 10 - filledBars;
+  const bar = '█'.repeat(filledBars) + '░'.repeat(emptyBars);
+  const percentageUsed = Math.round((used / DAILY_LIMIT) * 100);
+
+  message += `<code>${bar}</code>\n`;
+  message += `${used}/${DAILY_LIMIT} summaries used (${percentageUsed}%)\n\n`;
+
+  // Remaining info
+  if (remaining > 0) {
+    message += `✅ <b>${remaining} summarizations left today</b>\n`;
+  } else {
+    message += `❌ <b>Daily limit reached</b>\n`;
+    message += `<i>You\'ve used all 10 summaries for today</i>\n`;
+  }
+
+  // Reset time
+  const resetDate = new Date(resetAt);
+  const now = new Date();
+  const diffMs = resetDate.getTime() - now.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+  message += `\n⏰ <b>Resets in:</b>\n`;
+  message += `${diffHours}h ${diffMins}m\n`;
+
+  return message;
+}
+
+/**
+ * Format a combined message with summary + quota info
+ */
+export function formatSummaryWithQuota(
+  summary: string,
+  keyPoints: string[],
+  used: number,
+  remaining: number
+): string {
+  let message = '<b>📋 Summary</b>\n\n';
+  message += summary;
+  message += '\n\n<b>🎯 Key Points:</b>\n';
+
+  keyPoints.forEach((point, index) => {
+    message += `${index + 1}. ${escapeHtml(point)}\n`;
+  });
+
+  // Add quota info
+  const DAILY_LIMIT = 10;
+  const filledBars = Math.floor((used / DAILY_LIMIT) * 10);
+  const emptyBars = 10 - filledBars;
+  const bar = '█'.repeat(filledBars) + '░'.repeat(emptyBars);
+
+  message += `\n<b>📊 Quota:</b> <code>${bar}</code> ${used}/${DAILY_LIMIT} (${remaining} left)\n`;
+
+  return message;
+}

@@ -1,0 +1,258 @@
+═══════════════════════════════════════════════════════════════════════════════
+                    HOW ENVIRONMENT VARIABLES FLOW
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 1: LOCAL DEVELOPMENT (npm run dev)
+─────────────────────────────────────────────────────────────────────────────
+
+Your Computer
+    │
+    ├─── .env.local (git-ignored, private)
+    │    OPENAI_API_KEY=sk-proj-dev-key-here
+    │
+    ├─ npm run dev
+    │
+    ├─ Next.js reads .env.local
+    │
+    ├─ Sets: process.env.OPENAI_API_KEY = "sk-proj-dev-key-here"
+    │
+    ├─ API route runs: app/api/summarize/route.ts
+    │
+    └─ Uses: process.env.OPENAI_API_KEY
+       │
+       └─ ✅ Calls OpenAI API successfully
+         
+Result: http://localhost:3000 works! ✅
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 2: PRODUCTION ON VERCEL (git push)
+─────────────────────────────────────────────────────────────────────────────
+
+Your Computer              GitHub              Vercel Dashboard          Vercel Deploy
+    │                       │                        │                        │
+    ├─ git push             │                        │                        │
+    │                       │                        │                        │
+    ├─────── Code ────────→ GitHub Repo      Vercel watches GitHub      Vercel
+    │                       (no .env.local!)         │                    detected
+    │                                                │                     push
+    │                                         Reads from:
+    │                                         Settings →
+    │                                         Environment
+    │                                         Variables
+    │                                              │
+    │                                              ├─ OPENAI_API_KEY
+    │                                              │  = "sk-proj-prod-key"
+    │                                              │
+    │                                              ├─ TELEGRAM_BOT_TOKEN
+    │                                              │  = "123456789:ABC..."
+    │                                              │
+    │                                         Injects into
+    │                                         build process
+    │                                              │
+    │                                              └─ npm run build
+    │                                                 (with env vars)
+    │                                                      │
+    │                                                      └─ Deploys
+    │                                                           │
+    │                                              ✅ App uses process.env
+    │                                                 from Vercel
+    │
+Result: Your Vercel URL works! ✅
+
+═══════════════════════════════════════════════════════════════════════════════
+
+THE KEY INSIGHT
+─────────────────────────────────────────────────────────────────────────────
+
+     process.env.OPENAI_API_KEY
+            ↙              ↖
+       
+    Local Dev              Production
+    (Your PC)              (Vercel)
+       ↓                      ↓
+    .env.local          Vercel Dashboard
+   (git-ignored)        (encrypted, private)
+       ↓                      ↓
+    Only you see            Only you see
+    (if you guard           (if you don't share
+     your computer)         Vercel password)
+
+GitHub Repository:
+  └─ NO .env.local
+  └─ NO environment variables
+  └─ Only code files
+  └─ Public to everyone
+  └─ ✅ SAFE (no secrets exposed!)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+WHAT GOES WHERE
+─────────────────────────────────────────────────────────────────────────────
+
+GITHUB (Public - Anyone Can See):
+  ✅ app/page.tsx
+  ✅ app/api/summarize/route.ts
+  ✅ app/utils/openai-client.ts
+  ✅ package.json
+  ✅ next.config.ts
+  ✅ vercel.json
+  ✅ Documentation
+  ❌ NO .env.local
+  ❌ NO secret keys
+  ❌ NO API tokens
+
+YOUR COMPUTER (Private - Only You See):
+  ✅ .env.local with OPENAI_API_KEY
+  ✅ .env.local with TELEGRAM_BOT_TOKEN
+  ✅ Not pushed to GitHub
+  ✅ Git-ignored
+
+VERCEL DASHBOARD (Encrypted - Only You See):
+  ✅ OPENAI_API_KEY (for production)
+  ✅ TELEGRAM_BOT_TOKEN (for production)
+  ✅ Accessed via Settings → Environment Variables
+  ✅ Encrypted storage
+
+═══════════════════════════════════════════════════════════════════════════════
+
+COMPLETE SETUP CHECKLIST
+─────────────────────────────────────────────────────────────────────────────
+
+Step 1: Create .env.local (On Your Computer)
+  [ ] cp .env.local.example .env.local
+  [ ] Edit .env.local
+  [ ] Add OPENAI_API_KEY=sk-proj-your-dev-key
+  [ ] Add TELEGRAM_BOT_TOKEN=your-bot-token
+  [ ] npm run dev
+  [ ] Test at http://localhost:3000 ✅
+
+Step 2: Set Vercel Environment Variables (In Vercel Dashboard)
+  [ ] Go to Vercel Dashboard
+  [ ] Click Your Project
+  [ ] Settings → Environment Variables
+  [ ] Add OPENAI_API_KEY=sk-proj-your-prod-key
+  [ ] Add TELEGRAM_BOT_TOKEN=your-bot-token
+  [ ] Check all environments (Production, Preview, Development)
+  [ ] Click Save
+
+Step 3: Push to GitHub
+  [ ] git add .
+  [ ] git commit -m "Initial commit"
+  [ ] git push
+  [ ] .env.local is NOT pushed (git-ignored) ✅
+
+Step 4: Vercel Auto-Deploys
+  [ ] Vercel detects push
+  [ ] Vercel reads from dashboard (not GitHub)
+  [ ] Vercel builds with env vars injected
+  [ ] Deployment completes
+
+Step 5: Test Production
+  [ ] Visit your Vercel URL
+  [ ] Try summarizing ✅
+
+RESULT:
+  ✅ Local works (uses .env.local)
+  ✅ Production works (uses Vercel dashboard)
+  ✅ GitHub has no secrets
+  ✅ Everything is secure!
+
+═══════════════════════════════════════════════════════════════════════════════
+
+WHY THIS IS SECURE
+─────────────────────────────────────────────────────────────────────────────
+
+If Someone Hacks GitHub:
+  ❌ They get your code
+  ✅ They DON'T get your API keys (not in GitHub!)
+
+If Someone Hacks Your Computer:
+  ❌ They get your .env.local
+  ✅ Only your LOCAL key is compromised
+  ✅ Production key (in Vercel) is still safe
+
+If Someone Hacks Vercel Account:
+  ❌ They get production keys
+  ✅ Your local key (in .env.local) is still safe
+  ✅ Use strong Vercel password + 2FA
+
+DEFENSE IN DEPTH:
+  Layer 1: Git-ignore .env.local (can't be pushed)
+  Layer 2: Keep .env.local locally only (only on your computer)
+  Layer 3: Vercel stores keys encrypted (not in code)
+  Layer 4: Use different keys for dev vs production
+  Layer 5: Rotate keys if compromised
+
+═══════════════════════════════════════════════════════════════════════════════
+
+COMMON MISTAKES TO AVOID
+─────────────────────────────────────────────────────────────────────────────
+
+❌ DON'T: Commit .env.local to GitHub
+   ✅ DO: It's already git-ignored
+
+❌ DON'T: Hardcode API keys in code
+   ✅ DO: Use process.env.OPENAI_API_KEY
+
+❌ DON'T: Put secrets in .env.example
+   ✅ DO: Only put placeholder examples (sk-proj-xxx)
+
+❌ DON'T: Put secrets in vercel.json
+   ✅ DO: We removed that configuration
+
+❌ DON'T: Forget to set Vercel environment variables
+   ✅ DO: Always set them in Vercel dashboard
+
+❌ DON'T: Use same key for dev and production
+   ✅ DO: Rotate keys between environments
+
+═══════════════════════════════════════════════════════════════════════════════
+
+QUICK ANSWER TO YOUR QUESTION
+─────────────────────────────────────────────────────────────────────────────
+
+Q: "But without .env.local in GitHub, how does Vercel get the API key?"
+
+A: Vercel doesn't read .env.local from GitHub!
+
+   It reads from the Vercel Dashboard instead:
+   
+   Vercel Dashboard (Your Settings)
+        ↓
+   Settings → Environment Variables
+        ↓
+   OPENAI_API_KEY = sk-proj-prod-key
+        ↓
+   Vercel injects it at build time
+        ↓
+   Your app runs with that key
+
+   So:
+   - Local dev uses: .env.local
+   - Production uses: Vercel dashboard
+   - GitHub uses: Neither (just code!)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+FILES IN EACH LOCATION
+─────────────────────────────────────────────────────────────────────────────
+
+GitHub (Public):
+  app/
+  vercel.json
+  package.json
+  README.md
+  etc.
+
+Your Computer (Private):
+  .env.local ← Contains your dev API keys
+  node_modules/
+  .next/
+  etc.
+
+Vercel (Encrypted):
+  Environment Variables ← Contains production API keys
+  (set in dashboard)
+
+═══════════════════════════════════════════════════════════════════════════════
