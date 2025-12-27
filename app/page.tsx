@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useLayoutEffect } from 'react';
 import Image from 'next/image';
+import UserProfile from './components/UserProfile';
 
 interface WebApp {
   ready: () => void;
@@ -292,24 +293,32 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 p-3 pb-8">
       <div className="max-w-lg mx-auto">
-        {/* Back Button - Top Edge */}
-        {(inputMode !== null || step !== 'upload') && (
-          <button
-            onClick={() => {
-              if (inputMode === null && step !== 'upload') {
-                handleReset();
-              } else {
-                setInputMode(null);
-                setStep('upload');
-                setError('');
-              }
-            }}
-            className="mb-4 flex items-center gap-1 px-3 py-2 rounded-lg bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 font-medium transition active:scale-95"
-          >
-            <span className="text-lg">←</span>
-            <span className="text-sm">Back</span>
-          </button>
-        )}
+        {/* Top Navigation Bar */}
+        <div className="flex justify-between items-center mb-4">
+          {/* Back Button - Left Side */}
+          {(inputMode !== null || step !== 'upload') ? (
+            <button
+              onClick={() => {
+                if (inputMode === null && step !== 'upload') {
+                  handleReset();
+                } else {
+                  setInputMode(null);
+                  setStep('upload');
+                  setError('');
+                }
+              }}
+              className="flex items-center gap-1 px-3 py-2 rounded-lg bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 font-medium transition active:scale-95"
+            >
+              <span className="text-lg">←</span>
+              <span className="text-sm">Back</span>
+            </button>
+          ) : (
+            <div />
+          )}
+
+          {/* Profile - Right Side */}
+          <UserProfile />
+        </div>
 
         {/* Header */}
         <div className="text-center mb-6 pt-4">
