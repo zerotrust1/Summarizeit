@@ -129,13 +129,13 @@ ${text}`,
       try {
         // Try direct parsing first
         response = JSON.parse(content);
-      } catch (parseError) {
+      } catch {
         // If direct parsing fails, try to extract JSON from the content
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           try {
             response = JSON.parse(jsonMatch[0]);
-          } catch (extractError) {
+          } catch {
             console.error('Failed to parse extracted JSON:', content);
             return NextResponse.json(
               { error: 'Invalid response format from AI' },

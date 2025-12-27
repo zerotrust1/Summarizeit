@@ -3,10 +3,6 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "env": {
-    "OPENAI_API_KEY": "@openai_api_key",
-    "TELEGRAM_BOT_TOKEN": "@telegram_bot_token"
-  },
   "functions": {
     "app/api/**/*.ts": {
       "maxDuration": 60

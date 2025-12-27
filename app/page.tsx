@@ -220,7 +220,7 @@ export default function Home() {
 
       try {
         // Prepare the request payload
-        const payload: any = {
+        const payload: { text: string; initData?: string } = {
           text: extractedText,
         };
 

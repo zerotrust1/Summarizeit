@@ -133,12 +133,12 @@ ${text}`,
       let response: SummarizeResponse;
       try {
         response = JSON.parse(content);
-      } catch (parseError) {
+      } catch {
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           try {
             response = JSON.parse(jsonMatch[0]);
-          } catch (extractError) {
+          } catch {
             console.error('Failed to parse extracted JSON:', content);
             return NextResponse.json(
               { error: 'Invalid response format from AI' },
