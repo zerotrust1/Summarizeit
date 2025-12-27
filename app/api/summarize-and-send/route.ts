@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { checkRateLimit } from '@/app/utils/rate-limit';
+import { checkUserQuota } from '@/app/utils/user-rate-limit';
+import { validateTelegramInitData } from '@/app/utils/telegram-verify';
+import { initializeQuotaStorage } from '@/app/utils/user-rate-limit';
 import { sendTelegramMessage, formatSummaryForTelegram, extractUserIdFromInitData } from '@/app/utils/telegram-client';
+
+// Initialize quota storage on first import
+initializeQuotaStorage();
 
 // Maximum text length: 10,000 characters (~2,000 words)
 const MAX_TEXT_LENGTH = 10000;
@@ -18,6 +24,8 @@ interface SummarizeAndSendRequest {
 interface SummarizeResponse {
   summary: string;
   keyPoints: string[];
+  quotaRemaining?: number;
+  quotaResetAt?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -57,9 +65,10 @@ export async function POST(request: NextRequest) {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
     if (!apiKey) {
-      console.error('OPENAI_API_KEY not configured');
+      console.error('[CRITICAL] OPENAI_API_KEY not configured in environment');
+      console.error('To fix: Create .env.local file with OPENAI_API_KEY=your_key');
       return NextResponse.json(
-        { error: 'Server configuration error' },
+        { error: 'Server configuration error. Please contact support.' },
         { status: 500 }
       );
     }
@@ -72,6 +81,33 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // Check per-user quota if initData provided (Telegram context)
+    let quotaRemaining: number | undefined;
+    let quotaResetAt: string | undefined;
+
+    if (initData) {
+      const { valid, userId } = validateTelegramInitData(initData, botToken);
+
+      if (valid && userId) {
+        const quota = checkUserQuota(userId);
+
+        if (!quota.allowed) {
+          return NextResponse.json(
+            {
+              error: `Daily summarization limit reached. You have 10 summarizations per day. Try again after ${quota.resetAtDate}`,
+              resetAt: quota.resetAtDate,
+            },
+            { status: 429 }
+          );
+        }
+
+        quotaRemaining = quota.remaining;
+        quotaResetAt = quota.resetAtDate;
+      } else {
+        console.warn('Invalid Telegram signature or missing user ID');
+      }
     }
 
     // Create OpenAI client with environment key
@@ -206,6 +242,8 @@ ${text}`,
       return NextResponse.json({
         success: true,
         ...response,
+        quotaRemaining,
+        quotaResetAt,
         telegram: {
           sent: telegramSent,
           error: telegramError,

@@ -144,7 +144,8 @@ Return ONLY valid JSON, no other text.`,
 
       return NextResponse.json({
         success: true,
-        text: pdfResponse.summary,
+        summary: pdfResponse.summary,
+        keyPoints: pdfResponse.keyPoints,
       });
     } catch (apiError) {
       clearTimeout(timeoutId);

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { checkRateLimit } from '@/app/utils/rate-limit';
+import { checkUserQuota } from '@/app/utils/user-rate-limit';
+import { validateTelegramInitData } from '@/app/utils/telegram-verify';
+import { initializeQuotaStorage } from '@/app/utils/user-rate-limit';
+
+// Initialize quota storage on first import
+initializeQuotaStorage();
 
 // Maximum text length: 10,000 characters (~2,000 words)
 const MAX_TEXT_LENGTH = 10000;
@@ -10,11 +16,14 @@ const REQUEST_TIMEOUT = 30 * 1000; // 30 seconds
 
 interface SummarizeRequest {
   text: string;
+  initData?: string;
 }
 
 interface SummarizeResponse {
   summary: string;
   keyPoints: string[];
+  quotaRemaining?: number;
+  quotaResetAt?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -40,7 +49,7 @@ export async function POST(request: NextRequest) {
   let timeoutId: NodeJS.Timeout | undefined;
 
   try {
-    const { text } = (await request.json()) as SummarizeRequest;
+    const { text, initData } = (await request.json()) as SummarizeRequest;
 
     if (!text || text.trim().length === 0) {
       return NextResponse.json(
@@ -59,12 +68,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check per-user quota if initData provided (Telegram context)
+    let quotaRemaining: number | undefined;
+    let quotaResetAt: string | undefined;
+
+    if (initData) {
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      const { valid, userId } = validateTelegramInitData(initData, botToken);
+
+      if (valid && userId) {
+        const quota = checkUserQuota(userId);
+
+        if (!quota.allowed) {
+          return NextResponse.json(
+            {
+              error: `Daily summarization limit reached. You have 10 summarizations per day. Try again after ${quota.resetAtDate}`,
+              resetAt: quota.resetAtDate,
+            },
+            { status: 429 }
+          );
+        }
+
+        quotaRemaining = quota.remaining;
+        quotaResetAt = quota.resetAtDate;
+      }
+    }
+
     // Get API key from environment
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      console.error('OPENAI_API_KEY not configured');
+      console.error('[CRITICAL] OPENAI_API_KEY not configured in environment');
+      console.error('To fix: Create .env.local file with OPENAI_API_KEY=your_key');
       return NextResponse.json(
-        { error: 'Server configuration error' },
+        { error: 'Server configuration error. Please contact support.' },
         { status: 500 }
       );
     }
@@ -168,6 +204,8 @@ ${text}`,
       return NextResponse.json({
         success: true,
         ...response,
+        quotaRemaining,
+        quotaResetAt,
       });
     } catch (apiError) {
       if (timeoutId) clearTimeout(timeoutId);

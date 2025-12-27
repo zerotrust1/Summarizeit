@@ -24,6 +24,8 @@ declare global {
 interface SummaryResult {
   summary: string;
   keyPoints: string[];
+  quotaRemaining?: number;
+  quotaResetAt?: string;
 }
 
 interface ButtonProps {
@@ -210,7 +212,8 @@ export default function Home() {
   };
 
   const handleSummarize = async () => {
-    if (!extractedText) return;
+    // Prevent double submission
+    if (!extractedText || loading) return;
 
     setLoading(true);
     setError('');
