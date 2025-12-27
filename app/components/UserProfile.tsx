@@ -26,7 +26,7 @@ export default function UserProfile() {
     <>
       <button
         onClick={() => setShowModal(true)}
-        className="relative flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        className="relative flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 hover:scale-105 active:scale-95"
         title={`${user.firstName} ${user.lastName}`.trim()}
       >
         {/* Profile Picture */}

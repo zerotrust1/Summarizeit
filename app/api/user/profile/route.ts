@@ -62,6 +62,7 @@ function extractTelegramUserData(initData: string): {
  * Check if user has premium status
  * (Currently hardcoded to false - can be connected to payment system)
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function checkPremiumStatus(userId: string): boolean {
   // TODO: Connect to premium/subscription database
   // For now, return false for all users
@@ -94,9 +95,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract user data from initData
-    const telegramData = extractTelegramUserData(initData);
+    const _telegramData = extractTelegramUserData(initData);
 
-    if (!telegramData) {
+    if (!_telegramData) {
       return NextResponse.json(
         { error: 'Failed to extract user data' },
         { status: 400 }
@@ -112,10 +113,10 @@ export async function POST(request: NextRequest) {
     // Build user profile
     const profile: UserProfile = {
       userId: validatedUserId,
-      firstName: telegramData.firstName,
-      lastName: telegramData.lastName,
-      username: telegramData.username,
-      photoUrl: telegramData.photoUrl, // Telegram provides this in initData
+      firstName: _telegramData.firstName,
+      lastName: _telegramData.lastName,
+      username: _telegramData.username,
+      photoUrl: _telegramData.photoUrl, // Telegram provides this in initData
       isPremium,
       quotaUsed: quotaInfo.used,
       quotaRemaining: quotaInfo.remaining,
