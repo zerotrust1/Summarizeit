@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOpenAIClient } from '@/app/utils/openai-client';
 import { checkRateLimit } from '@/app/utils/rate-limit';
-import { checkUserQuota } from '@/app/utils/user-rate-limit';
-import { validateTelegramInitData } from '@/app/utils/telegram-verify';
+import { validateSummarizeRequest, createValidationErrorResponse } from '@/app/utils/validation';
 import { addSummaryToHistory, initializeHistoryStorage } from '@/app/utils/telegram-history';
-
-// Maximum text length: 10,000 characters (~2,000 words)
-const MAX_TEXT_LENGTH = 10000;
+import { initializeQuotaStorage } from '@/app/utils/user-rate-limit';
+import { getCachedSummary, cacheResponse } from '@/app/utils/request-cache';
 
 // Request timeout in milliseconds
 const REQUEST_TIMEOUT = 30 * 1000; // 30 seconds
 
 // Initialize storage on first import
-import { initializeQuotaStorage } from '@/app/utils/user-rate-limit';
 initializeQuotaStorage();
 initializeHistoryStorage();
 
@@ -52,51 +49,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const { text, initData } = (await request.json()) as SummarizeRequest;
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
-    if (!text || text.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'No text provided for summarization' },
-        { status: 400 }
-      );
+    // Use centralized validation
+    const validation = await validateSummarizeRequest(text, initData, botToken);
+    if (!validation.valid) {
+      return createValidationErrorResponse(validation);
     }
 
-    // Validate text length
-    if (text.length > MAX_TEXT_LENGTH) {
-      return NextResponse.json(
-        {
-          error: `Text is too long. Maximum ${MAX_TEXT_LENGTH} characters allowed (you provided ${text.length} characters)`,
-        },
-        { status: 400 }
-      );
-    }
-
-    // Check per-user quota if initData provided (Telegram context)
-    let quotaRemaining: number | undefined;
-    let quotaResetAt: string | undefined;
-
-    if (initData) {
-      const botToken = process.env.TELEGRAM_BOT_TOKEN;
-      const { valid, userId } = validateTelegramInitData(initData, botToken);
-
-      if (valid && userId) {
-        const quota = checkUserQuota(userId);
-
-        if (!quota.allowed) {
-          return NextResponse.json(
-            {
-              error: `Daily summarization limit reached. You have 10 summarizations per day. Try again after ${quota.resetAtDate}`,
-              resetAt: quota.resetAtDate,
-            },
-            { status: 429 }
-          );
-        }
-
-        quotaRemaining = quota.remaining;
-        quotaResetAt = quota.resetAtDate;
-      } else {
-        console.warn('Invalid Telegram signature or missing user ID');
-      }
-    }
+    const { quotaRemaining, quotaResetAt, userId } = validation;
 
     // Validate API key exists before proceeding
     if (!process.env.OPENAI_API_KEY) {
@@ -108,6 +69,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if result is already cached
+    const cachedResult = getCachedSummary(text);
+    if (cachedResult) {
+      return NextResponse.json({
+        success: true,
+        ...cachedResult,
+        quotaRemaining,
+        quotaResetAt,
+        cached: true,
+      });
+    }
+
+
     const openai = getOpenAIClient();
 
     // Create a promise that rejects after timeout
@@ -117,15 +91,13 @@ export async function POST(request: NextRequest) {
       }, REQUEST_TIMEOUT);
     });
 
-    try {
-      // Race between the API call and timeout
-      const message = await Promise.race([
-        openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'user',
-              content: `You are a professional summarizer. Analyze the following text and provide a response in VALID JSON format ONLY. Do not include any text before or after the JSON.
+    // Create the API call promise and register it for deduplication
+    const apiPromise = openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: `You are a professional summarizer. Analyze the following text and provide a response in VALID JSON format ONLY. Do not include any text before or after the JSON.
 
 Return ONLY a JSON object with this exact structure:
 {
@@ -141,11 +113,16 @@ Requirements:
 
 Text to summarize:
 ${text}`,
-            },
-          ],
-          temperature: 0.5,
-          max_tokens: 500,
-        }),
+        },
+      ],
+      temperature: 0.5,
+      max_tokens: 500,
+    });
+
+    try {
+      // Race between the API call and timeout
+      const message = await Promise.race([
+        apiPromise,
         timeoutPromise,
       ]);
 
@@ -202,18 +179,19 @@ ${text}`,
         );
       }
 
-      // Save to history if in Telegram context
-      if (initData) {
-        const botToken = process.env.TELEGRAM_BOT_TOKEN;
-        const { valid, userId } = validateTelegramInitData(initData, botToken);
+      // Cache the response for deduplication
+      cacheResponse(text, {
+        ...response,
+        timestamp: Date.now(),
+      });
 
-        if (valid && userId) {
-          try {
-            addSummaryToHistory(userId, response.summary, response.keyPoints, text);
-          } catch (historyError) {
-            console.warn('Failed to save to history:', historyError);
-            // Don't fail the request if history saving fails
-          }
+      // Save to history if in Telegram context
+      if (userId) {
+        try {
+          addSummaryToHistory(userId, response.summary, response.keyPoints, text);
+        } catch (historyError) {
+          console.warn('Failed to save to history:', historyError);
+          // Don't fail the request if history saving fails
         }
       }
 
